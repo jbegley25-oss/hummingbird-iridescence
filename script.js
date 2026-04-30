@@ -57,7 +57,7 @@ function addColorMemory(x, y, strength = 1) {
 
 function resize() {
   mobileViewport = isMobileViewport();
-  dpr = Math.min(window.devicePixelRatio || 1, mobileViewport ? 1.45 : 2);
+  dpr = Math.min(window.devicePixelRatio || 1, 2);
   width = Math.floor(window.innerWidth);
   height = Math.floor(window.innerHeight);
   canvas.width = Math.floor(width * dpr);
@@ -72,11 +72,11 @@ function resize() {
 
 function buildFeathers() {
   feathers = [];
-  const scale = mobileViewport ? clamp(width / 430, 0.58, 0.78) : clamp(width / 1280, 0.68, 1.18);
+  const scale = clamp(width / 1280, 0.68, 1.18);
   const featherW = 35 * scale;
   const featherH = 65 * scale;
-  const xGap = featherW * (mobileViewport ? 0.74 : 0.58);
-  const yGap = featherH * (mobileViewport ? 0.5 : 0.36);
+  const xGap = featherW * 0.58;
+  const yGap = featherH * 0.36;
   const rows = Math.ceil(height / yGap) + 5;
   const cols = Math.ceil(width / xGap) + 8;
 
@@ -130,9 +130,7 @@ function drawFeather(feather, time) {
   const touchActive = mobileViewport && lastInputWasTouch;
   const activeTouchPress = touchActive && pointer.down;
   const interaction = touchActive ? (activeTouchPress ? 1 : 0) : 1;
-  const range = touchActive
-    ? Math.max(112, Math.min(170, Math.min(width, height) * 0.31))
-    : Math.max(145, Math.min(220, Math.max(width, height) * 0.13));
+  const range = Math.max(145, Math.min(220, Math.max(width, height) * 0.13));
   const cursorWave = Math.max(0, 1 - distance / range);
   const pointerAngle = (pointer.x / width - 0.5) * 3.2 + (pointer.y / height - 0.5) * 1.4;
   const waveFront = distance * 0.032 - time * 0.0064;
@@ -141,14 +139,14 @@ function drawFeather(feather, time) {
   const plateAlignment = smoothstep(0.74, 0.9, angleMatch * 0.74 + travelingBand * 0.42);
   const directional = Math.sin(dx * 0.018 - dy * 0.012 + time * 0.0022 + feather.bias * 3);
   const cursorMask = smoothstep(0.02, 0.32, cursorWave);
-  let shimmer = Math.pow(cursorWave, touchActive ? 2.25 : 1.85) * plateAlignment * (touchActive ? 1.95 : 1.65) * interaction;
+  let shimmer = Math.pow(cursorWave, 1.85) * plateAlignment * 1.65 * interaction;
 
-  const memoryRadius = range * (touchActive ? 1.08 : 0.82);
+  const memoryRadius = range * 0.82;
   for (const memory of colorMemory) {
     const md = Math.hypot(feather.x - memory.x, feather.y - memory.y);
     const memoryWave = Math.max(0, 1 - md / memoryRadius);
-    const memoryFade = Math.pow(1 - memory.age, touchActive ? 1.15 : 1.65) * memory.strength;
-    shimmer += Math.pow(memoryWave, touchActive ? 1.9 : 2.15) * memoryFade * (touchActive ? 0.78 : 0.58);
+    const memoryFade = Math.pow(1 - memory.age, 1.65) * memory.strength;
+    shimmer += Math.pow(memoryWave, 2.15) * memoryFade * 0.58;
   }
 
   const flare = clamp(smoothstep(0.18, 0.38, shimmer) * Math.max(cursorMask, smoothstep(0.04, 0.24, shimmer) * 0.78), 0, 1);
@@ -219,16 +217,14 @@ function drawFeather(feather, time) {
 }
 
 function drawGlow(time) {
-  if (mobileViewport && lastInputWasTouch && !pointer.down) {
+  if (lastInputWasTouch && !pointer.down && !colorMemory.length) {
     return;
   }
 
-  const radius = mobileViewport && lastInputWasTouch
-    ? Math.max(116, Math.min(178, Math.min(width, height) * 0.32))
-    : Math.max(150, Math.min(225, Math.max(width, height) * 0.13));
+  const radius = Math.max(150, Math.min(225, Math.max(width, height) * 0.13));
   const glow = ctx.createRadialGradient(pointer.x, pointer.y, 0, pointer.x, pointer.y, radius);
-  glow.addColorStop(0, mobileViewport ? "rgba(255, 0, 190, 0.28)" : "rgba(255, 0, 190, 0.22)");
-  glow.addColorStop(0.18, mobileViewport ? "rgba(86, 255, 235, 0.14)" : "rgba(86, 255, 235, 0.12)");
+  glow.addColorStop(0, "rgba(255, 0, 190, 0.22)");
+  glow.addColorStop(0.18, "rgba(86, 255, 235, 0.12)");
   glow.addColorStop(0.42, "rgba(15, 255, 106, 0.035)");
   glow.addColorStop(0.72, "rgba(0, 0, 0, 0)");
   glow.addColorStop(1, "rgba(0, 0, 0, 0)");
@@ -257,8 +253,7 @@ function draw(time = 0) {
   drawBackground(time);
 
   colorMemory.forEach((memory) => {
-    const fadeSpeed = mobileViewport && lastInputWasTouch ? 0.018 : 0.042;
-    memory.age += reducedMotion ? 0.07 : fadeSpeed;
+    memory.age += reducedMotion ? 0.07 : 0.042;
   });
   while (colorMemory.length && colorMemory[0].age >= 1) {
     colorMemory.shift();
@@ -289,7 +284,7 @@ function updatePointer(event) {
 
   const shouldRemember = lastInputWasTouch ? pointer.down : true;
   if (shouldRemember && performance.now() - lastMemory > 30) {
-    addColorMemory(pointer.targetX, pointer.targetY, lastInputWasTouch ? 0.88 : 0.86);
+    addColorMemory(pointer.targetX, pointer.targetY, 0.86);
     lastMemory = performance.now();
   }
 }
@@ -301,7 +296,7 @@ window.addEventListener("pointerdown", (event) => {
   updatePointer(event);
   pointer.x = pointer.targetX;
   pointer.y = pointer.targetY;
-  addColorMemory(pointer.targetX, pointer.targetY, lastInputWasTouch ? 0.98 : 0.96);
+  addColorMemory(pointer.targetX, pointer.targetY, 0.96);
 });
 window.addEventListener("pointerup", () => {
   pointer.down = false;
