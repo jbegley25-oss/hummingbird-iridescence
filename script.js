@@ -11,6 +11,7 @@ const pointer = {
   lastMove: 0,
 };
 
+const colorMemory = [];
 let feathers = [];
 let width = 0;
 let height = 0;
@@ -18,6 +19,7 @@ let dpr = 1;
 let reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 let mobileViewport = false;
 let lastInputWasTouch = false;
+let lastMemory = 0;
 
 function isMobileViewport() {
   return window.innerWidth <= 720 || window.innerHeight <= 560;
@@ -38,6 +40,19 @@ function smoothstep(edge0, edge1, value) {
 
 function hsl(h, s, l, a = 1) {
   return `hsla(${h}, ${s}%, ${l}%, ${a})`;
+}
+
+function addColorMemory(x, y, strength = 1) {
+  colorMemory.push({
+    x,
+    y,
+    strength,
+    age: 0,
+  });
+
+  if (colorMemory.length > 32) {
+    colorMemory.shift();
+  }
 }
 
 function resize() {
@@ -116,8 +131,8 @@ function drawFeather(feather, time) {
   const activeTouchPress = touchActive && pointer.down;
   const interaction = touchActive ? (activeTouchPress ? 1 : 0) : 1;
   const range = touchActive
-    ? Math.max(42, Math.min(width, height) * 0.11)
-    : Math.max(90, Math.min(150, Math.max(width, height) * 0.09));
+    ? Math.max(68, Math.min(96, Math.min(width, height) * 0.17))
+    : Math.max(145, Math.min(220, Math.max(width, height) * 0.13));
   const cursorWave = Math.max(0, 1 - distance / range);
   const pointerAngle = (pointer.x / width - 0.5) * 3.2 + (pointer.y / height - 0.5) * 1.4;
   const waveFront = distance * 0.032 - time * 0.0064;
@@ -126,9 +141,17 @@ function drawFeather(feather, time) {
   const plateAlignment = smoothstep(0.74, 0.9, angleMatch * 0.74 + travelingBand * 0.42);
   const directional = Math.sin(dx * 0.018 - dy * 0.012 + time * 0.0022 + feather.bias * 3);
   const cursorMask = smoothstep(0.02, 0.32, cursorWave);
-  const shimmer = Math.pow(cursorWave, touchActive ? 2.9 : 2.35) * plateAlignment * (touchActive ? 2.2 : 1.9) * interaction;
+  let shimmer = Math.pow(cursorWave, touchActive ? 2.25 : 1.85) * plateAlignment * (touchActive ? 1.95 : 1.65) * interaction;
 
-  const flare = clamp(smoothstep(0.2, 0.36, shimmer) * cursorMask, 0, 1);
+  const memoryRadius = range * 0.82;
+  for (const memory of colorMemory) {
+    const md = Math.hypot(feather.x - memory.x, feather.y - memory.y);
+    const memoryWave = Math.max(0, 1 - md / memoryRadius);
+    const memoryFade = Math.pow(1 - memory.age, 1.65) * memory.strength;
+    shimmer += Math.pow(memoryWave, touchActive ? 2.7 : 2.15) * memoryFade * 0.58;
+  }
+
+  const flare = clamp(smoothstep(0.18, 0.38, shimmer) * Math.max(cursorMask, smoothstep(0.04, 0.24, shimmer) * 0.78), 0, 1);
   const colorSplit = smoothstep(0.45, 0.9, travelingBand + feather.microAngle * 0.08);
   const blueSplit = smoothstep(0.7, 1, travelingBand - feather.microAngle * 0.12);
   const centerMagenta = smoothstep(0.68, 0.98, cursorWave) * smoothstep(0.36, 0.88, flare);
@@ -201,8 +224,8 @@ function drawGlow(time) {
   }
 
   const radius = mobileViewport && lastInputWasTouch
-    ? Math.max(46, Math.min(width, height) * 0.13)
-    : Math.max(92, Math.min(140, Math.max(width, height) * 0.085));
+    ? Math.max(72, Math.min(102, Math.min(width, height) * 0.18))
+    : Math.max(150, Math.min(225, Math.max(width, height) * 0.13));
   const glow = ctx.createRadialGradient(pointer.x, pointer.y, 0, pointer.x, pointer.y, radius);
   glow.addColorStop(0, mobileViewport ? "rgba(255, 0, 190, 0.28)" : "rgba(255, 0, 190, 0.22)");
   glow.addColorStop(0.18, mobileViewport ? "rgba(86, 255, 235, 0.14)" : "rgba(86, 255, 235, 0.12)");
@@ -228,10 +251,17 @@ function drawGlow(time) {
 }
 
 function draw(time = 0) {
-  pointer.x += (pointer.targetX - pointer.x) * 0.88;
-  pointer.y += (pointer.targetY - pointer.y) * 0.88;
+  pointer.x += (pointer.targetX - pointer.x) * 0.52;
+  pointer.y += (pointer.targetY - pointer.y) * 0.52;
 
   drawBackground(time);
+
+  colorMemory.forEach((memory) => {
+    memory.age += reducedMotion ? 0.07 : 0.042;
+  });
+  while (colorMemory.length && colorMemory[0].age >= 1) {
+    colorMemory.shift();
+  }
 
   let flareTotal = 0;
   for (const feather of feathers) {
@@ -245,13 +275,22 @@ function draw(time = 0) {
 
 function updatePointer(event) {
   const point = event.touches ? event.touches[0] : event;
+  const wasActive = pointer.active;
   lastInputWasTouch = Boolean(event.touches || event.pointerType === "touch");
   pointer.targetX = point.clientX;
   pointer.targetY = point.clientY;
-  pointer.x = pointer.targetX;
-  pointer.y = pointer.targetY;
+  if (!wasActive) {
+    pointer.x = pointer.targetX;
+    pointer.y = pointer.targetY;
+  }
   pointer.active = true;
   pointer.lastMove = performance.now();
+
+  const shouldRemember = lastInputWasTouch ? pointer.down : true;
+  if (shouldRemember && performance.now() - lastMemory > 30) {
+    addColorMemory(pointer.targetX, pointer.targetY, lastInputWasTouch ? 0.72 : 0.86);
+    lastMemory = performance.now();
+  }
 }
 
 window.addEventListener("resize", resize);
@@ -259,6 +298,9 @@ window.addEventListener("pointermove", updatePointer);
 window.addEventListener("pointerdown", (event) => {
   pointer.down = true;
   updatePointer(event);
+  pointer.x = pointer.targetX;
+  pointer.y = pointer.targetY;
+  addColorMemory(pointer.targetX, pointer.targetY, lastInputWasTouch ? 0.82 : 0.96);
 });
 window.addEventListener("pointerup", () => {
   pointer.down = false;
