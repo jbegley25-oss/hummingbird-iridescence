@@ -11,12 +11,10 @@ const pointer = {
   lastMove: 0,
 };
 
-const ripples = [];
 let feathers = [];
 let width = 0;
 let height = 0;
 let dpr = 1;
-let lastRipple = 0;
 let reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 let mobileViewport = false;
 let lastInputWasTouch = false;
@@ -91,20 +89,6 @@ function buildFeathers() {
   feathers.sort((a, b) => a.y - b.y);
 }
 
-function addRipple(x, y, strength = 1) {
-  ripples.push({
-    x,
-    y,
-    strength,
-    age: 0,
-    radius: 10,
-  });
-  const maxRipples = mobileViewport ? 4 : 18;
-  if (ripples.length > maxRipples) {
-    ripples.shift();
-  }
-}
-
 function drawBackground(time) {
   const base = ctx.createLinearGradient(0, 0, width, height);
   base.addColorStop(0, "#070706");
@@ -131,7 +115,9 @@ function drawFeather(feather, time) {
   const touchActive = mobileViewport && lastInputWasTouch;
   const activeTouchPress = touchActive && pointer.down;
   const interaction = touchActive ? (activeTouchPress ? 1 : 0) : 1;
-  const range = Math.max(width, height) * (touchActive ? 0.12 : 0.3);
+  const range = touchActive
+    ? Math.max(42, Math.min(width, height) * 0.11)
+    : Math.max(90, Math.min(150, Math.max(width, height) * 0.09));
   const cursorWave = Math.max(0, 1 - distance / range);
   const pointerAngle = (pointer.x / width - 0.5) * 3.2 + (pointer.y / height - 0.5) * 1.4;
   const waveFront = distance * 0.032 - time * 0.0064;
@@ -139,19 +125,10 @@ function drawFeather(feather, time) {
   const travelingBand = (Math.cos(waveFront + feather.bias * 2.4) + 1) * 0.5;
   const plateAlignment = smoothstep(0.74, 0.9, angleMatch * 0.74 + travelingBand * 0.42);
   const directional = Math.sin(dx * 0.018 - dy * 0.012 + time * 0.0022 + feather.bias * 3);
-  let shimmer = Math.pow(cursorWave, touchActive ? 2.6 : 1.15) * plateAlignment * (touchActive ? 1.9 : 1.45) * interaction;
+  const cursorMask = smoothstep(0.02, 0.32, cursorWave);
+  const shimmer = Math.pow(cursorWave, touchActive ? 2.9 : 2.35) * plateAlignment * (touchActive ? 2.2 : 1.9) * interaction;
 
-  for (const ripple of ripples) {
-    const rd = Math.hypot(feather.x - ripple.x, feather.y - ripple.y);
-    const ring = Math.abs(rd - ripple.radius);
-    const ringWidth = touchActive ? 24 : 42;
-    const wave = Math.max(0, 1 - ring / ringWidth) * ripple.strength * Math.pow(1 - ripple.age, touchActive ? 2.8 : 1.7) * interaction;
-    const flash = smoothstep(0.28, 0.58, wave + angleMatch * 0.38);
-    shimmer += flash * 1.05;
-  }
-
-  const idle = reducedMotion ? 0 : (Math.sin(time * 0.00048 + feather.seed * 8) + 1) * 0.006;
-  const flare = clamp(smoothstep(0.22, 0.42, shimmer) + idle, 0, 1);
+  const flare = clamp(smoothstep(0.2, 0.36, shimmer) * cursorMask, 0, 1);
   const colorSplit = smoothstep(0.45, 0.9, travelingBand + feather.microAngle * 0.08);
   const blueSplit = smoothstep(0.7, 1, travelingBand - feather.microAngle * 0.12);
   const centerMagenta = smoothstep(0.68, 0.98, cursorWave) * smoothstep(0.36, 0.88, flare);
@@ -223,12 +200,14 @@ function drawGlow(time) {
     return;
   }
 
-  const radius = Math.max(width, height) * (mobileViewport && lastInputWasTouch ? 0.13 : 0.34);
+  const radius = mobileViewport && lastInputWasTouch
+    ? Math.max(46, Math.min(width, height) * 0.13)
+    : Math.max(92, Math.min(140, Math.max(width, height) * 0.085));
   const glow = ctx.createRadialGradient(pointer.x, pointer.y, 0, pointer.x, pointer.y, radius);
-  glow.addColorStop(0, mobileViewport ? "rgba(255, 0, 190, 0.34)" : "rgba(255, 0, 190, 0.28)");
-  glow.addColorStop(0.12, mobileViewport ? "rgba(86, 255, 235, 0.2)" : "rgba(86, 255, 235, 0.24)");
-  glow.addColorStop(0.28, mobileViewport ? "rgba(15, 255, 106, 0.12)" : "rgba(15, 255, 106, 0.2)");
-  glow.addColorStop(0.58, mobileViewport ? "rgba(27, 100, 255, 0)" : "rgba(27, 100, 255, 0.07)");
+  glow.addColorStop(0, mobileViewport ? "rgba(255, 0, 190, 0.28)" : "rgba(255, 0, 190, 0.22)");
+  glow.addColorStop(0.18, mobileViewport ? "rgba(86, 255, 235, 0.14)" : "rgba(86, 255, 235, 0.12)");
+  glow.addColorStop(0.42, "rgba(15, 255, 106, 0.035)");
+  glow.addColorStop(0.72, "rgba(0, 0, 0, 0)");
   glow.addColorStop(1, "rgba(0, 0, 0, 0)");
 
   ctx.save();
@@ -236,11 +215,11 @@ function drawGlow(time) {
   ctx.fillStyle = glow;
   ctx.fillRect(0, 0, width, height);
 
-  ctx.globalAlpha = 0.1;
+  ctx.globalAlpha = 0.06;
   ctx.strokeStyle = "rgba(241, 255, 234, 0.34)";
   ctx.lineWidth = 1;
-  for (let i = 0; i < 3; i += 1) {
-    const r = 74 + i * 64 + Math.sin(time * 0.003 + i) * 14;
+  for (let i = 0; i < 2; i += 1) {
+    const r = 34 + i * 36 + Math.sin(time * 0.003 + i) * 5;
     ctx.beginPath();
     ctx.arc(pointer.x, pointer.y, r, 0, Math.PI * 2);
     ctx.stroke();
@@ -253,14 +232,6 @@ function draw(time = 0) {
   pointer.y += (pointer.targetY - pointer.y) * 0.88;
 
   drawBackground(time);
-
-  ripples.forEach((ripple) => {
-    ripple.age += reducedMotion ? 0.07 : mobileViewport && lastInputWasTouch ? 0.16 : 0.075;
-    ripple.radius += reducedMotion ? 7.5 : mobileViewport && lastInputWasTouch ? 6.5 : 12.5;
-  });
-  while (ripples.length && ripples[0].age >= 1) {
-    ripples.shift();
-  }
 
   let flareTotal = 0;
   for (const feather of feathers) {
@@ -281,12 +252,6 @@ function updatePointer(event) {
   pointer.y = pointer.targetY;
   pointer.active = true;
   pointer.lastMove = performance.now();
-
-  const rippleDelay = mobileViewport && lastInputWasTouch ? 90 : 38;
-  if (!reducedMotion && performance.now() - lastRipple > rippleDelay && (!lastInputWasTouch || pointer.down)) {
-    addRipple(pointer.targetX, pointer.targetY, pointer.down ? 1.45 : 0.95);
-    lastRipple = performance.now();
-  }
 }
 
 window.addEventListener("resize", resize);
@@ -294,7 +259,6 @@ window.addEventListener("pointermove", updatePointer);
 window.addEventListener("pointerdown", (event) => {
   pointer.down = true;
   updatePointer(event);
-  addRipple(event.clientX, event.clientY, 1.8);
 });
 window.addEventListener("pointerup", () => {
   pointer.down = false;
@@ -311,5 +275,4 @@ window.matchMedia("(prefers-reduced-motion: reduce)").addEventListener("change",
 });
 
 resize();
-addRipple(pointer.x, pointer.y, 0.9);
 requestAnimationFrame(draw);
