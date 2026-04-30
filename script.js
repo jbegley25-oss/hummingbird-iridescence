@@ -12,13 +12,11 @@ const pointer = {
 };
 
 const ripples = [];
-const touchTraces = [];
 let feathers = [];
 let width = 0;
 let height = 0;
 let dpr = 1;
 let lastRipple = 0;
-let lastTrace = 0;
 let reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 let mobileViewport = false;
 let lastInputWasTouch = false;
@@ -107,17 +105,6 @@ function addRipple(x, y, strength = 1) {
   }
 }
 
-function addTouchTrace(x, y) {
-  touchTraces.push({
-    x,
-    y,
-    age: 0,
-  });
-  if (touchTraces.length > 28) {
-    touchTraces.shift();
-  }
-}
-
 function drawBackground(time) {
   const base = ctx.createLinearGradient(0, 0, width, height);
   base.addColorStop(0, "#070706");
@@ -153,16 +140,6 @@ function drawFeather(feather, time) {
   const plateAlignment = smoothstep(0.74, 0.9, angleMatch * 0.74 + travelingBand * 0.42);
   const directional = Math.sin(dx * 0.018 - dy * 0.012 + time * 0.0022 + feather.bias * 3);
   let shimmer = Math.pow(cursorWave, touchActive ? 2.6 : 1.15) * plateAlignment * (touchActive ? 1.9 : 1.45) * interaction;
-
-  if (touchActive) {
-    const traceRadius = Math.max(34, Math.min(width, height) * 0.105);
-    for (const trace of touchTraces) {
-      const td = Math.hypot(feather.x - trace.x, feather.y - trace.y);
-      const traceFalloff = Math.max(0, 1 - td / traceRadius);
-      const traceFlash = Math.pow(traceFalloff, 2.4) * Math.pow(1 - trace.age, 2.1);
-      shimmer += traceFlash * 0.68;
-    }
-  }
 
   for (const ripple of ripples) {
     const rd = Math.hypot(feather.x - ripple.x, feather.y - ripple.y);
@@ -285,13 +262,6 @@ function draw(time = 0) {
     ripples.shift();
   }
 
-  touchTraces.forEach((trace) => {
-    trace.age += reducedMotion ? 0.08 : 0.055;
-  });
-  while (touchTraces.length && touchTraces[0].age >= 1) {
-    touchTraces.shift();
-  }
-
   let flareTotal = 0;
   for (const feather of feathers) {
     flareTotal += drawFeather(feather, time);
@@ -317,11 +287,6 @@ function updatePointer(event) {
     addRipple(pointer.targetX, pointer.targetY, pointer.down ? 1.45 : 0.95);
     lastRipple = performance.now();
   }
-
-  if (mobileViewport && lastInputWasTouch && pointer.down && performance.now() - lastTrace > 34) {
-    addTouchTrace(pointer.targetX, pointer.targetY);
-    lastTrace = performance.now();
-  }
 }
 
 window.addEventListener("resize", resize);
@@ -330,9 +295,6 @@ window.addEventListener("pointerdown", (event) => {
   pointer.down = true;
   updatePointer(event);
   addRipple(event.clientX, event.clientY, 1.8);
-  if (mobileViewport && lastInputWasTouch) {
-    addTouchTrace(pointer.targetX, pointer.targetY);
-  }
 });
 window.addEventListener("pointerup", () => {
   pointer.down = false;
