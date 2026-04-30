@@ -120,26 +120,26 @@ function drawFeather(feather, time) {
   const dx = feather.x - pointer.x;
   const dy = feather.y - pointer.y;
   const distance = Math.hypot(dx, dy);
-  const range = Math.max(width, height) * 0.36;
+  const range = Math.max(width, height) * 0.3;
   const cursorWave = Math.max(0, 1 - distance / range);
   const pointerAngle = (pointer.x / width - 0.5) * 3.2 + (pointer.y / height - 0.5) * 1.4;
-  const waveFront = distance * 0.028 - time * 0.0048;
+  const waveFront = distance * 0.032 - time * 0.0064;
   const angleMatch = (Math.cos(pointerAngle + feather.microAngle * 1.25 + feather.bias * 0.7) + 1) * 0.5;
   const travelingBand = (Math.cos(waveFront + feather.bias * 2.4) + 1) * 0.5;
-  const plateAlignment = smoothstep(0.72, 0.96, angleMatch * 0.72 + travelingBand * 0.38);
+  const plateAlignment = smoothstep(0.74, 0.9, angleMatch * 0.74 + travelingBand * 0.42);
   const directional = Math.sin(dx * 0.018 - dy * 0.012 + time * 0.0022 + feather.bias * 3);
-  let shimmer = Math.pow(cursorWave, 1.7) * plateAlignment;
+  let shimmer = Math.pow(cursorWave, 1.15) * plateAlignment * 1.45;
 
   for (const ripple of ripples) {
     const rd = Math.hypot(feather.x - ripple.x, feather.y - ripple.y);
     const ring = Math.abs(rd - ripple.radius);
-    const wave = Math.max(0, 1 - ring / 54) * ripple.strength * (1 - ripple.age);
-    const flash = smoothstep(0.5, 0.95, wave + angleMatch * 0.5);
-    shimmer += flash * 0.7;
+    const wave = Math.max(0, 1 - ring / 42) * ripple.strength * Math.pow(1 - ripple.age, 1.7);
+    const flash = smoothstep(0.28, 0.58, wave + angleMatch * 0.38);
+    shimmer += flash * 1.05;
   }
 
-  const idle = reducedMotion ? 0 : (Math.sin(time * 0.00048 + feather.seed * 8) + 1) * 0.018;
-  const flare = clamp(smoothstep(0.14, 0.62, shimmer) + idle, 0, 1);
+  const idle = reducedMotion ? 0 : (Math.sin(time * 0.00048 + feather.seed * 8) + 1) * 0.006;
+  const flare = clamp(smoothstep(0.22, 0.42, shimmer) + idle, 0, 1);
   const colorSplit = smoothstep(0.45, 0.9, travelingBand + feather.microAngle * 0.08);
   const blueSplit = smoothstep(0.7, 1, travelingBand - feather.microAngle * 0.12);
   const centerMagenta = smoothstep(0.68, 0.98, cursorWave) * smoothstep(0.36, 0.88, flare);
@@ -147,10 +147,10 @@ function drawFeather(feather, time) {
   const emerald = 139 + Math.cos(feather.bias * 1.7 + time * 0.0007) * 16;
   const cyanBlue = 188 + Math.sin(feather.bias * 1.2 + time * 0.0009) * 26;
   const coolHue = mix(emerald, cyanBlue, blueSplit);
-  const hue = mix(coolHue, magenta, centerMagenta * 0.82);
+  const hue = mix(coolHue, magenta, centerMagenta * 0.94);
   const restingHue = mix(24, 58, feather.seed * 0.45);
-  const sat = mix(7, centerMagenta > 0.45 ? 100 : 90, flare);
-  const light = mix(12 + feather.seed * 9, centerMagenta > 0.45 ? 59 : 54, flare);
+  const sat = mix(5, centerMagenta > 0.45 ? 100 : 98, flare);
+  const light = mix(12 + feather.seed * 9, centerMagenta > 0.45 ? 70 : 63, flare);
 
   ctx.save();
   ctx.translate(feather.x, feather.y);
@@ -170,13 +170,13 @@ function drawFeather(feather, time) {
   ctx.fill();
 
   ctx.globalCompositeOperation = "screen";
-  ctx.globalAlpha = smoothstep(0.28, 0.9, flare) * 0.72;
-  ctx.fillStyle = hsl(hue + 8, 100, centerMagenta > 0.45 ? 69 : 62, 0.78);
+  ctx.globalAlpha = smoothstep(0.18, 0.62, flare) * 0.96;
+  ctx.fillStyle = hsl(hue + 8, 100, centerMagenta > 0.45 ? 76 : 68, 0.9);
   ctx.beginPath();
   ctx.ellipse(-feather.w * 0.12, -feather.h * 0.05, feather.w * 0.18, feather.h * 0.46, -0.2, 0, Math.PI * 2);
   ctx.fill();
 
-  ctx.globalAlpha = smoothstep(0.66, 1, flare) * 0.52;
+  ctx.globalAlpha = smoothstep(0.48, 0.82, flare) * 0.78;
   ctx.fillStyle = "rgba(255, 246, 244, 0.82)";
   ctx.beginPath();
   ctx.ellipse(feather.w * 0.13, -feather.h * 0.28, feather.w * 0.08, feather.h * 0.2, -0.7, 0, Math.PI * 2);
@@ -184,7 +184,7 @@ function drawFeather(feather, time) {
 
   ctx.globalCompositeOperation = "source-over";
   ctx.globalAlpha = 0.28 + flare * 0.32;
-  ctx.strokeStyle = flare > 0.2 ? hsl(hue + 35, 90, 78, 0.7) : "rgba(232, 225, 208, 0.22)";
+  ctx.strokeStyle = flare > 0.2 ? hsl(hue + 35, 100, 82, 0.88) : "rgba(232, 225, 208, 0.2)";
   ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.moveTo(0, -feather.h * 0.42);
@@ -209,10 +209,10 @@ function drawFeather(feather, time) {
 function drawGlow(time) {
   const radius = Math.max(width, height) * 0.34;
   const glow = ctx.createRadialGradient(pointer.x, pointer.y, 0, pointer.x, pointer.y, radius);
-  glow.addColorStop(0, "rgba(255, 22, 188, 0.13)");
-  glow.addColorStop(0.16, "rgba(78, 245, 223, 0.16)");
-  glow.addColorStop(0.36, "rgba(31, 239, 103, 0.13)");
-  glow.addColorStop(0.66, "rgba(27, 100, 255, 0.045)");
+  glow.addColorStop(0, "rgba(255, 0, 190, 0.28)");
+  glow.addColorStop(0.12, "rgba(86, 255, 235, 0.24)");
+  glow.addColorStop(0.28, "rgba(15, 255, 106, 0.2)");
+  glow.addColorStop(0.58, "rgba(27, 100, 255, 0.07)");
   glow.addColorStop(1, "rgba(0, 0, 0, 0)");
 
   ctx.save();
@@ -233,14 +233,14 @@ function drawGlow(time) {
 }
 
 function draw(time = 0) {
-  pointer.x += (pointer.targetX - pointer.x) * 0.34;
-  pointer.y += (pointer.targetY - pointer.y) * 0.34;
+  pointer.x += (pointer.targetX - pointer.x) * 0.88;
+  pointer.y += (pointer.targetY - pointer.y) * 0.88;
 
   drawBackground(time);
 
   ripples.forEach((ripple) => {
-    ripple.age += reducedMotion ? 0.045 : 0.035;
-    ripple.radius += reducedMotion ? 5.2 : 7.8;
+    ripple.age += reducedMotion ? 0.07 : 0.075;
+    ripple.radius += reducedMotion ? 7.5 : 12.5;
   });
   while (ripples.length && ripples[0].age >= 1) {
     ripples.shift();
@@ -260,11 +260,13 @@ function updatePointer(event) {
   const point = event.touches ? event.touches[0] : event;
   pointer.targetX = point.clientX;
   pointer.targetY = point.clientY;
+  pointer.x = pointer.targetX;
+  pointer.y = pointer.targetY;
   pointer.active = true;
   pointer.lastMove = performance.now();
 
-  if (!reducedMotion && performance.now() - lastRipple > 85) {
-    addRipple(pointer.targetX, pointer.targetY, pointer.down ? 1.25 : 0.72);
+  if (!reducedMotion && performance.now() - lastRipple > 38) {
+    addRipple(pointer.targetX, pointer.targetY, pointer.down ? 1.45 : 0.95);
     lastRipple = performance.now();
   }
 }
@@ -274,7 +276,7 @@ window.addEventListener("pointermove", updatePointer);
 window.addEventListener("pointerdown", (event) => {
   pointer.down = true;
   updatePointer(event);
-  addRipple(event.clientX, event.clientY, 1.5);
+  addRipple(event.clientX, event.clientY, 1.8);
 });
 window.addEventListener("pointerup", () => {
   pointer.down = false;
