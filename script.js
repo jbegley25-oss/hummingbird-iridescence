@@ -18,6 +18,12 @@ let height = 0;
 let dpr = 1;
 let lastRipple = 0;
 let reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+let mobileViewport = false;
+let lastInputWasTouch = false;
+
+function isMobileViewport() {
+  return window.innerWidth <= 720 || window.innerHeight <= 560;
+}
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -37,7 +43,8 @@ function hsl(h, s, l, a = 1) {
 }
 
 function resize() {
-  dpr = Math.min(window.devicePixelRatio || 1, 2);
+  mobileViewport = isMobileViewport();
+  dpr = Math.min(window.devicePixelRatio || 1, mobileViewport ? 1.45 : 2);
   width = Math.floor(window.innerWidth);
   height = Math.floor(window.innerHeight);
   canvas.width = Math.floor(width * dpr);
@@ -52,11 +59,11 @@ function resize() {
 
 function buildFeathers() {
   feathers = [];
-  const scale = clamp(width / 1280, 0.68, 1.18);
+  const scale = mobileViewport ? clamp(width / 430, 0.58, 0.78) : clamp(width / 1280, 0.68, 1.18);
   const featherW = 35 * scale;
   const featherH = 65 * scale;
-  const xGap = featherW * 0.58;
-  const yGap = featherH * 0.36;
+  const xGap = featherW * (mobileViewport ? 0.74 : 0.58);
+  const yGap = featherH * (mobileViewport ? 0.5 : 0.36);
   const rows = Math.ceil(height / yGap) + 5;
   const cols = Math.ceil(width / xGap) + 8;
 
@@ -92,7 +99,8 @@ function addRipple(x, y, strength = 1) {
     age: 0,
     radius: 10,
   });
-  if (ripples.length > 18) {
+  const maxRipples = mobileViewport ? 4 : 18;
+  if (ripples.length > maxRipples) {
     ripples.shift();
   }
 }
@@ -120,7 +128,10 @@ function drawFeather(feather, time) {
   const dx = feather.x - pointer.x;
   const dy = feather.y - pointer.y;
   const distance = Math.hypot(dx, dy);
-  const range = Math.max(width, height) * 0.3;
+  const touchActive = mobileViewport && lastInputWasTouch;
+  const activeTouchPress = touchActive && pointer.down;
+  const interaction = touchActive ? (activeTouchPress ? 1 : 0) : 1;
+  const range = Math.max(width, height) * (touchActive ? 0.12 : 0.3);
   const cursorWave = Math.max(0, 1 - distance / range);
   const pointerAngle = (pointer.x / width - 0.5) * 3.2 + (pointer.y / height - 0.5) * 1.4;
   const waveFront = distance * 0.032 - time * 0.0064;
@@ -128,12 +139,13 @@ function drawFeather(feather, time) {
   const travelingBand = (Math.cos(waveFront + feather.bias * 2.4) + 1) * 0.5;
   const plateAlignment = smoothstep(0.74, 0.9, angleMatch * 0.74 + travelingBand * 0.42);
   const directional = Math.sin(dx * 0.018 - dy * 0.012 + time * 0.0022 + feather.bias * 3);
-  let shimmer = Math.pow(cursorWave, 1.15) * plateAlignment * 1.45;
+  let shimmer = Math.pow(cursorWave, touchActive ? 2.6 : 1.15) * plateAlignment * (touchActive ? 1.9 : 1.45) * interaction;
 
   for (const ripple of ripples) {
     const rd = Math.hypot(feather.x - ripple.x, feather.y - ripple.y);
     const ring = Math.abs(rd - ripple.radius);
-    const wave = Math.max(0, 1 - ring / 42) * ripple.strength * Math.pow(1 - ripple.age, 1.7);
+    const ringWidth = touchActive ? 24 : 42;
+    const wave = Math.max(0, 1 - ring / ringWidth) * ripple.strength * Math.pow(1 - ripple.age, touchActive ? 2.8 : 1.7) * interaction;
     const flash = smoothstep(0.28, 0.58, wave + angleMatch * 0.38);
     shimmer += flash * 1.05;
   }
@@ -207,12 +219,16 @@ function drawFeather(feather, time) {
 }
 
 function drawGlow(time) {
-  const radius = Math.max(width, height) * 0.34;
+  if (mobileViewport && lastInputWasTouch && !pointer.down) {
+    return;
+  }
+
+  const radius = Math.max(width, height) * (mobileViewport && lastInputWasTouch ? 0.13 : 0.34);
   const glow = ctx.createRadialGradient(pointer.x, pointer.y, 0, pointer.x, pointer.y, radius);
-  glow.addColorStop(0, "rgba(255, 0, 190, 0.28)");
-  glow.addColorStop(0.12, "rgba(86, 255, 235, 0.24)");
-  glow.addColorStop(0.28, "rgba(15, 255, 106, 0.2)");
-  glow.addColorStop(0.58, "rgba(27, 100, 255, 0.07)");
+  glow.addColorStop(0, mobileViewport ? "rgba(255, 0, 190, 0.34)" : "rgba(255, 0, 190, 0.28)");
+  glow.addColorStop(0.12, mobileViewport ? "rgba(86, 255, 235, 0.2)" : "rgba(86, 255, 235, 0.24)");
+  glow.addColorStop(0.28, mobileViewport ? "rgba(15, 255, 106, 0.12)" : "rgba(15, 255, 106, 0.2)");
+  glow.addColorStop(0.58, mobileViewport ? "rgba(27, 100, 255, 0)" : "rgba(27, 100, 255, 0.07)");
   glow.addColorStop(1, "rgba(0, 0, 0, 0)");
 
   ctx.save();
@@ -239,8 +255,8 @@ function draw(time = 0) {
   drawBackground(time);
 
   ripples.forEach((ripple) => {
-    ripple.age += reducedMotion ? 0.07 : 0.075;
-    ripple.radius += reducedMotion ? 7.5 : 12.5;
+    ripple.age += reducedMotion ? 0.07 : mobileViewport && lastInputWasTouch ? 0.16 : 0.075;
+    ripple.radius += reducedMotion ? 7.5 : mobileViewport && lastInputWasTouch ? 6.5 : 12.5;
   });
   while (ripples.length && ripples[0].age >= 1) {
     ripples.shift();
@@ -258,6 +274,7 @@ function draw(time = 0) {
 
 function updatePointer(event) {
   const point = event.touches ? event.touches[0] : event;
+  lastInputWasTouch = Boolean(event.touches || event.pointerType === "touch");
   pointer.targetX = point.clientX;
   pointer.targetY = point.clientY;
   pointer.x = pointer.targetX;
@@ -265,7 +282,8 @@ function updatePointer(event) {
   pointer.active = true;
   pointer.lastMove = performance.now();
 
-  if (!reducedMotion && performance.now() - lastRipple > 38) {
+  const rippleDelay = mobileViewport && lastInputWasTouch ? 90 : 38;
+  if (!reducedMotion && performance.now() - lastRipple > rippleDelay && (!lastInputWasTouch || pointer.down)) {
     addRipple(pointer.targetX, pointer.targetY, pointer.down ? 1.45 : 0.95);
     lastRipple = performance.now();
   }
@@ -281,7 +299,13 @@ window.addEventListener("pointerdown", (event) => {
 window.addEventListener("pointerup", () => {
   pointer.down = false;
 });
+window.addEventListener("pointercancel", () => {
+  pointer.down = false;
+});
 window.addEventListener("touchmove", updatePointer, { passive: true });
+window.addEventListener("touchend", () => {
+  pointer.down = false;
+});
 window.matchMedia("(prefers-reduced-motion: reduce)").addEventListener("change", (event) => {
   reducedMotion = event.matches;
 });

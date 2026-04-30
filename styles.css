@@ -15,6 +15,7 @@ body {
   width: 100%;
   min-height: 100%;
   margin: 0;
+  overscroll-behavior: none;
 }
 
 body {
@@ -33,7 +34,8 @@ body {
 .experience {
   position: relative;
   width: 100vw;
-  height: 100svh;
+  height: 100vh;
+  height: 100dvh;
   min-height: 520px;
   isolation: isolate;
 }
@@ -89,21 +91,31 @@ h1 {
   }
 
   .experience {
-    min-height: 560px;
+    min-height: 100dvh;
   }
 
   .intro {
-    top: 22px;
-    left: 18px;
+    top: max(18px, env(safe-area-inset-top));
+    left: max(16px, env(safe-area-inset-left));
+    width: min(360px, calc(100vw - 32px));
+  }
+
+  .kicker {
+    margin-bottom: 8px;
+    font-size: 0.64rem;
   }
 
   h1 {
-    max-width: 9ch;
+    max-width: 10ch;
+    font-size: clamp(2.35rem, 13vw, 4.25rem);
+    line-height: 0.92;
   }
 
   .intro p:last-child {
-    max-width: 29rem;
-    margin-top: 16px;
+    max-width: 22rem;
+    margin-top: 12px;
+    font-size: 0.92rem;
+    line-height: 1.42;
   }
 }
 
@@ -116,6 +128,12 @@ h1 {
     font-size: clamp(2.5rem, 7vw, 5rem);
   }
 
+}
+
+@media (max-width: 430px), (max-height: 560px) {
+  .intro p:last-child {
+    display: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
